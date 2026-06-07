@@ -44,7 +44,7 @@ func (c *Reader) Read(p []byte) (n int, err error) {
 	for n < len(p) && errors.Is(err, io.EOF) {
 		deltaUrl := c.baseUrl + fmt.Sprintf("/%d/delta", c.frag)
 
-		deltaResp, err := http.Get(deltaUrl)
+		deltaResp, err := get(deltaUrl)
 		if err != nil {
 			return n, fmt.Errorf("failed to get %q: %w", deltaUrl, err)
 		}
@@ -90,7 +90,7 @@ func (c *Reader) Read(p []byte) (n int, err error) {
 func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 	syncUrl := baseUrl + "/sync"
 
-	syncResp, err := http.Get(syncUrl)
+	syncResp, err := get(syncUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sync from %q: %w", syncUrl, err)
 	}
@@ -100,6 +100,10 @@ func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 	b, err := io.ReadAll(syncResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response from %q: %w", syncUrl, err)
+	}
+
+	if syncResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status from %q: %s: %s", syncUrl, syncResp.Status, string(b))
 	}
 
 	var s sync
@@ -116,12 +120,16 @@ func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 
 	startUrl := fmt.Sprintf(baseUrl+"/%d/start", s.SignupFragment)
 
-	startResp, err := http.Get(startUrl)
+	startResp, err := get(startUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get %q: %w", startUrl, err)
 	}
 
 	defer startResp.Body.Close()
+
+	if startResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status from %q: %s", startUrl, startResp.Status)
+	}
 
 	var buf bytes.Buffer
 
@@ -132,12 +140,16 @@ func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 
 	fullUrl := fmt.Sprintf(baseUrl+"/%d/full", s.Fragment)
 
-	fullResp, err := http.Get(fullUrl)
+	fullResp, err := get(fullUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get %q: %w", fullUrl, err)
 	}
 
 	defer fullResp.Body.Close()
+
+	if fullResp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status from %q: %s", fullUrl, fullResp.Status)
+	}
 
 	_, err = io.Copy(&buf, fullResp.Body)
 	if err != nil {
@@ -151,4 +163,15 @@ func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 		frag:    s.Fragment,
 		timeout: timeout,
 	}, nil
+}
+
+func get(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", "demoinfocs-golang")
+
+	return http.DefaultClient.Do(req)
 }
