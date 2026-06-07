@@ -364,19 +364,36 @@ func NewCSTVBroadcastParser(baseUrl string) (Parser, error) {
 	return NewCSTVBroadcastParserWithConfig(baseUrl, DefaultParserConfig)
 }
 
+// NewCSTVBroadcastParserWithSync creates a new Parser for a live CSTV broadcast and returns the initial CSTV sync metadata.
+// The baseUrl is the base URL of the CSTV broadcast, e.g. "http://localhost:8080/s85568392932860274t1733091777".
+//
+// See also: NewParserWithConfig() & DefaultParserConfig
+func NewCSTVBroadcastParserWithSync(baseUrl string) (Parser, cstv.Sync, error) {
+	return NewCSTVBroadcastParserWithConfigAndSync(baseUrl, DefaultParserConfig)
+}
+
 // NewCSTVBroadcastParserWithConfig creates a new Parser for a live CSTV broadcast with a custom configuration.
 // The baseUrl is the base URL of the CSTV broadcast, e.g. "http://localhost:8080/s85568392932860274t1733091777".
 //
 // See also: NewParserWithConfig() & DefaultParserConfig
 func NewCSTVBroadcastParserWithConfig(baseUrl string, config ParserConfig) (Parser, error) {
+	p, _, err := NewCSTVBroadcastParserWithConfigAndSync(baseUrl, config)
+	return p, err
+}
+
+// NewCSTVBroadcastParserWithConfigAndSync creates a new Parser for a live CSTV broadcast with a custom configuration and returns the initial CSTV sync metadata.
+// The baseUrl is the base URL of the CSTV broadcast, e.g. "http://localhost:8080/s85568392932860274t1733091777".
+//
+// See also: NewParserWithConfig() & DefaultParserConfig
+func NewCSTVBroadcastParserWithConfigAndSync(baseUrl string, config ParserConfig) (Parser, cstv.Sync, error) {
 	r, err := cstv.NewReader(baseUrl, config.CSTVTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CSTV reader: %w", err)
+		return nil, cstv.Sync{}, fmt.Errorf("failed to create CSTV reader: %w", err)
 	}
 
 	config.Format = DemoFormatCSTVBroadcast
 
-	return NewParserWithConfig(r, config), nil
+	return NewParserWithConfig(r, config), r.Sync(), nil
 }
 
 type ParserCallback func(Parser) error

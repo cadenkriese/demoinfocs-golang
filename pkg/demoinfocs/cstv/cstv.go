@@ -12,7 +12,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-type sync struct {
+// Sync contains metadata returned by a CSTV broadcast's /sync endpoint.
+type Sync struct {
 	Tick             int     `json:"tick"`
 	EndTick          int     `json:"endtick"`
 	MaxTick          int     `json:"maxtick"`
@@ -29,10 +30,15 @@ type sync struct {
 
 type Reader struct {
 	baseUrl string
-	sync    sync
+	sync    Sync
 	frag    int
 	buf     bytes.Buffer
 	timeout time.Duration
+}
+
+// Sync returns the initial sync metadata used to create the reader.
+func (c *Reader) Sync() Sync {
+	return c.sync
 }
 
 func (c *Reader) Read(p []byte) (n int, err error) {
@@ -106,7 +112,7 @@ func NewReader(baseUrl string, timeout time.Duration) (*Reader, error) {
 		return nil, fmt.Errorf("unexpected status from %q: %s: %s", syncUrl, syncResp.Status, string(b))
 	}
 
-	var s sync
+	var s Sync
 
 	err = json.Unmarshal(b, &s)
 	if err != nil {
